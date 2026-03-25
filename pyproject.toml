@@ -1,0 +1,20 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "openshift-release-mcp"
+version = "0.1.0"
+description = "MCP server exposing OpenShift release information tools"
+requires-python = ">=3.13"
+dependencies = [
+    "mcp",
+    "httpx",
+    "python-dotenv",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["openshift_release_mcp"]
+
+[project.scripts]
+openshift-release-mcp = "openshift_release_mcp:main"
