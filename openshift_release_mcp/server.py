@@ -20,6 +20,12 @@ mcp = FastMCP(
 
 BASE_URL = os.getenv("BASE_URL", "https://amd64.ocp.releases.ci.openshift.org/api/v1")
 
+class ComponentInfo(BaseModel):
+    """A component info in a release payload."""
+    name: str
+    version: str
+    from_version: str
+
 class CommitInfo(BaseModel):
     """A commit info in a release payload."""
     subject: str
@@ -35,6 +41,7 @@ class ReleaseInfo(BaseModel):
     version: str
     phase: str
     updated_images: List[UpdatedImage] = Field(default_factory=list)
+    components: List[ComponentInfo] = Field(default_factory=list)
 
 async def _get_json(url: str) -> dict:
     logger.info("GET %s", url)
@@ -52,6 +59,18 @@ async def _get_text(url: str) -> str:
         logger.info("Response %s from %s", resp.status_code, url)
         return resp.text
 
+def _get_release_info(payload: dict, release_info: ReleaseInfo) -> ReleaseInfo: 
+    if "changeLogJson" in payload and "updatedImages" in payload["changeLogJson"]:
+        for image in payload["changeLogJson"]["updatedImages"]:
+            updated_image = UpdatedImage(name=image["name"])
+            if "commits" in image:
+                updated_image.commits = [CommitInfo(subject=commit["subject"], pull_request_url=commit["pullURL"]) for commit in image["commits"]]
+            release_info.updated_images.append(updated_image)
+    if "changeLogJson" in payload and "components" in payload["changeLogJson"]:
+        for component in payload["changeLogJson"]["components"]:
+            release_info.components.append(ComponentInfo(name=component["name"], version=component["version"], from_version=component.get("from", "")))
+    return release_info
+
 @mcp.tool()
 async def get_release(stream: str, version: str) -> dict:
     """Fetch detailed information about a specific OpenShift release version.
@@ -60,18 +79,8 @@ async def get_release(stream: str, version: str) -> dict:
         stream: The release stream, e.g. '4.22.0-0.nightly', '4-stable', '4-dev-preview', '4.18.0-0.ci'
         version: The full release version tag, e.g. '4.22.0-0.nightly-2026-03-23-022245'
     """
-    logger.info("get_release called: stream=%s, version=%s", stream, version)
     payload = await _get_json(f"{BASE_URL}/releasestream/{stream}/release/{version}")
-    release_info = ReleaseInfo(
-        version=payload["name"],
-        phase=payload["phase"],
-    )
-    if "changeLogJson" in payload and "updatedImages" in payload["changeLogJson"]:
-        for image in payload["changeLogJson"]["updatedImages"]:
-            updated_image = UpdatedImage(name=image["name"])
-            if "commits" in image:
-                updated_image.commits = [CommitInfo(subject=commit["subject"], pull_request_url=commit["pullURL"]) for commit in image["commits"]]
-            release_info.updated_images.append(updated_image)
+    release_info = _get_release_info(payload, ReleaseInfo(version=payload["name"], phase=payload["phase"]))
     return release_info
 
 
@@ -99,9 +108,9 @@ async def compare_releases(stream: str, payload1: str, payload2: str) -> dict:
         payload2: The base release version to compare from
     """
     logger.info("compare_releases called: stream=%s, payload1=%s, payload2=%s", stream, payload1, payload2)
-    return await _get_json(
-        f"{BASE_URL}/releasestream/{stream}/release/{payload1}?from={payload2}"
-    )
+    payload = await _get_json(f"{BASE_URL}/releasestream/{stream}/release/{payload1}?from={payload2}")
+    release_info = _get_release_info(payload, ReleaseInfo(version=payload["name"], phase=payload["phase"]))
+    return release_info
 
 @mcp.tool()
 async def get_pull_request_info(url: str) -> dict:
