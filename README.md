@@ -8,16 +8,15 @@ The default API base is `https://amd64.ocp.releases.ci.openshift.org/api/v1`.
 
 - Python **3.13+**
 
-## Install
+## Install (uv)
 
 ```bash
-cd /path/to/release-mcp
-python3 -m venv .venv
+git clone https://github.com/openshift/ocp-release-mcp.git
+cd ocp-release-mcp
+uv venv
 source .venv/bin/activate
-pip install -e .
+uv pip install .
 ```
-
-This installs the `openshift-release-mcp` console script and dependencies (`mcp`, `httpx`, `python-dotenv`).
 
 ## Configuration
 
