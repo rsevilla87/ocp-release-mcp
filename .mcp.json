@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "ocp-openshift-release": {
+    "openshift-release": {
       "type": "http",
       "url": "http://localhost:8000/mcp"
     }
